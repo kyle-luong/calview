@@ -8,6 +8,8 @@ import logging
 import math
 from dotenv import load_dotenv
 
+logger = logging.getLogger(__name__)
+
 load_dotenv()
 GOOGLE_MAPS_KEY = os.getenv("GOOGLE_MAPS_KEY")
 print("Loaded .env file for configuration.", len(GOOGLE_MAPS_KEY) if GOOGLE_MAPS_KEY else 0)
@@ -148,6 +150,8 @@ def geocode_location(address: str, bias_coords: dict = None) -> dict:
 
         # Calculate confidence based on result type and location_type
         confidence = calculate_confidence(result)
+
+        logger.info(f"Geocoded '{address}' to ({location['lat']}, {location['lng']}) with confidence {confidence:.2f}")
 
         return {
             "lat": location["lat"],
@@ -388,4 +392,5 @@ def parse_ics(file_content: str, school_location: str = None):
                 })
             current += timedelta(days=1)
 
+    logging.info(f"Parsed {len(events)} events from ICS file with geocoding.")
     return events
