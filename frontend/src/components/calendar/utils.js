@@ -9,6 +9,17 @@ export const timeToMinutes = (timeStr) => {
 };
 
 /**
+ * Check if an event is "independent" (no specific time slot).
+ * Independent events have start === end, typically both at "12:00".
+ * These should be displayed in a separate "Other" section, not in the hourly grid.
+ */
+export const isIndependentEvent = (event) => {
+  if (!event.start || !event.end) return true;
+  // Independent events have identical start and end times
+  return event.start === event.end;
+};
+
+/**
  * Format hour for display (12h or 24h format)
  */
 export const formatHour = (hour, timeFormat = '12h') => {

@@ -6,6 +6,7 @@ import {
   formatTime,
   getEventColor,
   getEventStyle,
+  isIndependentEvent,
   timeToMinutes,
 } from './utils';
 
@@ -99,6 +100,24 @@ describe('calendar utilities', () => {
       const style = getEventStyle(event, 8, { column: 0, totalColumns: 1 });
       expect(style.top).toBeDefined();
       expect(style.height).toBeDefined();
+    });
+  });
+
+  describe('isIndependentEvent', () => {
+    it('returns true for events with same start and end time', () => {
+      expect(isIndependentEvent({ start: '12:00', end: '12:00' })).toBe(true);
+      expect(isIndependentEvent({ start: '00:00', end: '00:00' })).toBe(true);
+    });
+
+    it('returns false for events with different start and end times', () => {
+      expect(isIndependentEvent({ start: '09:00', end: '10:00' })).toBe(false);
+      expect(isIndependentEvent({ start: '12:00', end: '13:00' })).toBe(false);
+    });
+
+    it('returns true for events missing start or end', () => {
+      expect(isIndependentEvent({ start: '12:00' })).toBe(true);
+      expect(isIndependentEvent({ end: '12:00' })).toBe(true);
+      expect(isIndependentEvent({})).toBe(true);
     });
   });
 });
