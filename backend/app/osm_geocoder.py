@@ -14,11 +14,23 @@ logger = logging.getLogger(__name__)
 # Cache for campus buildings: {campus_key: {building_name_lower: {lat, lon, name}}}
 _campus_cache: dict = {}
 
-# Overpass API endpoint
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+# Overpass API endpoints (primary + backup)
+OVERPASS_URLS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+]
 
 # Minimum fuzzy match score to consider a match (0-100)
-MIN_MATCH_SCORE = 65
+MIN_MATCH_SCORE = 60
+
+# Academic subjects for keyword matching
+ACADEMIC_SUBJECTS = [
+    "physics", "chemistry", "biology", "mathematics", "math", "computer",
+    "engineering", "astronomy", "geology", "psychology", "economics",
+    "history", "english", "philosophy", "art", "music", "theater",
+    "business", "law", "medicine", "nursing", "education", "social",
+    "political", "anthropology", "sociology", "linguistics", "data science"
+]
 
 
 def _normalize_name(name: str) -> str:
@@ -32,14 +44,23 @@ def _normalize_name(name: str) -> str:
     return name
 
 
+def _extract_subject(name: str) -> Optional[str]:
+    """Extract academic subject from building name if present."""
+    name_lower = name.lower()
+    for subject in ACADEMIC_SUBJECTS:
+        if subject in name_lower:
+            return subject
+    return None
+
+
 def _fetch_campus_buildings(lat: float, lon: float, radius_m: int = 2000) -> dict:
     """
     Fetch all named buildings within radius of a point from OSM.
     Returns dict of {normalized_name: {lat, lon, full_name}}
+    Also indexes by academic subject for "Physics Building" style queries.
     """
-    # Query for buildings within radius
     query = f"""
-    [out:json][timeout:30];
+    [out:json][timeout:45];
     (
       way["building"]["name"](around:{radius_m},{lat},{lon});
       relation["building"]["name"](around:{radius_m},{lat},{lon});
@@ -47,15 +68,23 @@ def _fetch_campus_buildings(lat: float, lon: float, radius_m: int = 2000) -> dic
     out center tags;
     """
 
-    try:
-        response = requests.post(OVERPASS_URL, data={"data": query}, timeout=30)
-        response.raise_for_status()
-        data = response.json()
-    except Exception as e:
-        logger.warning(f"OSM Overpass query failed: {e}")
+    data = None
+    for url in OVERPASS_URLS:
+        try:
+            response = requests.post(url, data={"data": query}, timeout=45)
+            response.raise_for_status()
+            data = response.json()
+            break
+        except Exception as e:
+            logger.warning(f"OSM Overpass query failed on {url}: {e}")
+            continue
+
+    if not data:
         return {}
 
     buildings = {}
+    subject_buildings = {}  # Track best building per subject
+
     for element in data.get("elements", []):
         tags = element.get("tags", {})
         name = tags.get("name")
@@ -73,24 +102,35 @@ def _fetch_campus_buildings(lat: float, lon: float, radius_m: int = 2000) -> dic
         else:
             continue
 
+        building_data = {
+            "lat": blat,
+            "lon": blon,
+            "full_name": name
+        }
+
         normalized = _normalize_name(name)
         if normalized:
-            buildings[normalized] = {
-                "lat": blat,
-                "lon": blon,
-                "full_name": name
-            }
+            buildings[normalized] = building_data
 
             # Also add alternative names if present
             alt_name = tags.get("alt_name")
             if alt_name:
                 alt_normalized = _normalize_name(alt_name)
                 if alt_normalized:
-                    buildings[alt_normalized] = {
-                        "lat": blat,
-                        "lon": blon,
-                        "full_name": name
-                    }
+                    buildings[alt_normalized] = building_data
+
+            # Index by academic subject (prefer names with "Building" or "Department")
+            subject = _extract_subject(name)
+            if subject:
+                name_lower = name.lower()
+                is_main_building = "building" in name_lower or "department" in name_lower
+                if subject not in subject_buildings or is_main_building:
+                    subject_buildings[subject] = building_data
+
+    # Add subject-based entries (e.g., "physics" -> Physics Building)
+    for subject, bld_data in subject_buildings.items():
+        if subject not in buildings:
+            buildings[subject] = bld_data
 
     logger.info(f"Fetched {len(buildings)} buildings from OSM near ({lat}, {lon})")
     return buildings
@@ -151,6 +191,19 @@ def osm_geocode(building_name: str, anchor_lat: float, anchor_lon: float) -> Opt
             "lng": bld["lon"],
             "confidence": 0.95,
             "source": "osm_exact",
+            "matched_name": bld["full_name"]
+        }
+
+    # Try subject-based match (e.g., "Physics Building" -> look for "physics" key)
+    query_subject = _extract_subject(building_name)
+    if query_subject and query_subject in buildings:
+        bld = buildings[query_subject]
+        logger.info(f"OSM subject match: '{building_name}' -> '{bld['full_name']}' (subject: {query_subject})")
+        return {
+            "lat": bld["lat"],
+            "lng": bld["lon"],
+            "confidence": 0.85,
+            "source": "osm_subject",
             "matched_name": bld["full_name"]
         }
 
