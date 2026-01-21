@@ -6,11 +6,13 @@ import { formatHour } from './utils';
  */
 export default function TimeColumn({ timeSlots, timeFormat }) {
   return (
-    <div className="sticky left-0 z-10 w-16 flex-shrink-0 border-r border-slate-200/70 bg-transparent backdrop-blur-sm">
-      {/* Empty header cell - sticky */}
-      <div className="sticky top-0 z-20 h-14 border-b border-slate-200 bg-slate-50" />
+    <div className="sticky left-0 z-10 flex w-16 flex-shrink-0 flex-col border-r border-slate-200/70 bg-transparent backdrop-blur-sm">
+      {/* FIX APPLIED: Added 'flex-none'. 
+         This prevents the header from shrinking/growing, ensuring it matches the DayColumn header height exactly.
+      */}
+      <div className="sticky top-0 z-20 h-14 flex-none border-b border-slate-200 bg-slate-50" />
 
-      {/* Time labels - explicit height to match day columns */}
+      {/* Time labels */}
       <div className="relative" style={{ height: `${timeSlots.length * HOUR_HEIGHT}px` }}>
         {timeSlots.map((hour) => (
           <div

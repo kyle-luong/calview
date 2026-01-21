@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { addDays, format, startOfWeek } from 'date-fns';
 
 import { isIndependentEvent } from './calendar/utils';
-import { CalendarHeader, DayColumn, TimeColumn } from './calendar';
+import { CalendarHeader, DayColumn, IndependentEventsSection, TimeColumn } from './calendar';
 
 /**
  * Weekly calendar view similar to university schedule planners.
@@ -106,6 +106,21 @@ export default function WeeklyCalendar({
     return grouped;
   }, [events, weekDays]);
 
+  // Collect all independent events for the week (shown in separate section)
+  const weekIndependentEvents = useMemo(() => {
+    return weekEvents.filter((event) => isIndependentEvent(event));
+  }, [weekEvents]);
+
+  // Filter out independent events for each day (they go in the top section)
+  const timedEventsByDay = useMemo(() => {
+    const grouped = {};
+    weekDays.forEach((day) => {
+      const dayStr = format(day, 'yyyy-MM-dd');
+      grouped[dayStr] = events.filter((e) => e.start_date === dayStr && !isIndependentEvent(e));
+    });
+    return grouped;
+  }, [events, weekDays]);
+
   return (
     <div className="flex h-full flex-col rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white via-slate-50 to-slate-100 shadow-lg">
       <CalendarHeader
@@ -115,6 +130,9 @@ export default function WeeklyCalendar({
         onDateChange={onDateChange}
         eventDates={allEventDates}
       />
+
+      {/* Independent/Unscheduled events section - always visible at top */}
+      <IndependentEventsSection events={weekIndependentEvents} />
 
       {/* Calendar grid - scrollable, horizontal scroll with snap on mobile */}
       <div className="flex flex-1 overflow-auto sm:overflow-auto">
@@ -131,7 +149,7 @@ export default function WeeklyCalendar({
               <DayColumn
                 key={dayStr}
                 day={day}
-                events={eventsByDay[dayStr] || []}
+                events={timedEventsByDay[dayStr] || []}
                 timeSlots={timeSlots}
                 startHour={startHour}
                 endHour={endHour}
