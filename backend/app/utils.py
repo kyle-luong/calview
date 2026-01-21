@@ -7,6 +7,7 @@ import re
 import logging
 import math
 from dotenv import load_dotenv
+from app.osm_geocoder import osm_geocode, clear_cache as clear_osm_cache
 
 logger = logging.getLogger(__name__)
 
@@ -115,17 +116,29 @@ def clean_location(location: str) -> str:
     return cleaned
 
 
-def geocode_location(address: str, bias_coords: dict = None) -> dict:
+def geocode_location(address: str, bias_coords: dict = None, use_osm: bool = True) -> dict:
     """
     Geocode a single address, optionally with coordinate bias.
+    Tries OSM first (when bias_coords provided), then falls back to Google.
     Returns dict with lat, lng, confidence score, and raw result.
     """
     if not address:
         return {"lat": None, "lng": None, "confidence": 0, "raw": None}
 
-    # Use a local reference to the global gmaps to make mocking easier
-    # Import here so tests can patch app.utils.gmaps
-    from app import utils 
+    # Try OSM geocoding first if we have an anchor point
+    if use_osm and bias_coords:
+        osm_result = osm_geocode(address, bias_coords["lat"], bias_coords["lng"])
+        if osm_result and osm_result.get("confidence", 0) >= 0.7:
+            logger.info(f"OSM geocoded '{address}' -> {osm_result.get('matched_name')} with confidence {osm_result['confidence']:.2f}")
+            return {
+                "lat": osm_result["lat"],
+                "lng": osm_result["lng"],
+                "confidence": osm_result["confidence"],
+                "raw": {"source": osm_result.get("source"), "matched_name": osm_result.get("matched_name")}
+            }
+
+    # Fall back to Google Maps geocoding
+    from app import utils
     client = utils.gmaps
 
     try:
@@ -151,7 +164,7 @@ def geocode_location(address: str, bias_coords: dict = None) -> dict:
         # Calculate confidence based on result type and location_type
         confidence = calculate_confidence(result)
 
-        logger.info(f"Geocoded '{address}' to ({location['lat']}, {location['lng']}) with confidence {confidence:.2f}")
+        logger.info(f"Google geocoded '{address}' to ({location['lat']}, {location['lng']}) with confidence {confidence:.2f}")
 
         return {
             "lat": location["lat"],
