@@ -10,14 +10,6 @@ Complete step-by-step guide to deploy a full stack application on AWS Free Tier 
 - Domain name (optional, can use S3/EC2 URLs directly)
     - Without a custom domain, your URL will look like https://dXXXXXXX.cloudfront.net or the raw S3/EC2 address
 
-# Architecture Diagram 
-
-Previous Architecture Diagram (routify.tech)
-![Routify AWS Architecture Diagram](images/routify.png)
-
-Current Architecture Diagram (https://calview.me)
-![Routify AWS Architecture Diagram](images/calview.png)
-
 ## Step 1: Create AWS Account & IAM User
 
 ### 1.1 Create AWS Account

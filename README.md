@@ -4,9 +4,11 @@ A calendar visualizer that parses `.ics` files, geocodes event locations, and di
 
 ## Repo overview
 
-- **Frontend:** React, Vite, Tailwind CSS
-- **Backend:** FastAPI, SQLModel
-- **Database:** PostgreSQL (via Docker)
+- **Frontend**: React 19, Vite, Tailwind CSS, Mapbox GL JS
+- **Backend**: FastAPI, SQLModel, PostgreSQL, Google Maps API
+- **Infrastructure**: AWS (S3, CloudFront, EC2) via CI/CD pipelines.
+
+> For a complete breakdown of the system design, data flow, and infrastructure diagrams, please refer to [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ### Features
 
@@ -64,3 +66,9 @@ docker compose down --volumes
 ```
 
 If `DATABASE_URL` is not set, the app falls back to a local SQLite database at `app/database.db`, with no setup required.
+
+### Feedback
+
+We are actively iterating based on user needs.
+- Try it out: https://calview.me
+- Contact: Submit feedback via the form on the website or open a GitHub issue.
