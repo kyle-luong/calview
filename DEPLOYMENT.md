@@ -295,3 +295,165 @@ sudo systemctl status calview
 ```
 
 ---
+
+## Step 6: Set Up CloudFront (HTTPS & CDN)
+
+CloudFront caches your content globally to improve performance and provides free SSL (HTTPS) for your website.
+
+### 6.1 Request an SSL Certificate (Custom Domain Only)
+*Skip this step if you do not have a custom domain (e.g., `calview.me`). You will use the default CloudFront URL instead.*
+
+1. Go to **AWS Certificate Manager (ACM)** within the **us-east-1 (N. Virginia)** region.
+    > **Note:** CloudFront certificates *must* be in `us-east-1`, regardless of where your infrastructure is.
+2. Click **Request**.
+3. Select **Request a public certificate** → **Next**.
+4. **Domain names:** Enter your root domain (e.g., `calview.me`)
+5. **Validation method:** DNS validation (recommended).
+6. Click **Request**.
+7. **Validate the Certificate:**
+    - Click on the Certificate ID you just created.
+    - Find the **CNAME name** and **CNAME value** listed under "Domains".
+    - Go to your DNS Provider (GoDaddy, Namecheap, Route53, etc.) and add this **CNAME record**.
+        - When entering the Host (sometimes called Name), make sure not to include the trailing domain name. For example, if ACM gives you `_abcd1234.calview.me` as the CNAME name and `_xyz5678.acm-validations.aws` as the value, you would enter `_abcd1234` in the Host field and `_xyz5678.acm-validations.aws` in the Value field in NameCheap.
+    - Wait for the status to change from "Pending validation" to "Issued" (can take 5-30 mins).
+
+### 6.2 Create CloudFront Distribution
+
+1. Go to **CloudFront** → **Create distribution**.
+2. **Origin Settings:**
+    - **Origin Domain:** Select your S3 bucket (`calview-frontend...`) from the dropdown.
+3. Use recommended origin/cache settings → Tailored for S3.
+4. **Web Application Firewall (WAF):**
+    - Select **Do not enable security protections** (to stay in Free Tier).
+5. Click **Create distribution**.
+6. Go to **General** → **Settings** → **Edit**.
+    - **Alternate domain name (CNAME):** Enter your domain (e.g., `calview.me`, `www.calview.me`).
+    - **Custom SSL certificate:** Select the ACM certificate you created in Step 6.1.
+    - **Default root object:** `index.html`
+
+> **Note:** It may take 10-15 minutes for the distribution to deploy.
+
+### 6.3 Configure DNS (Point Domain to CloudFront)
+*Skip this if you are not using a custom domain.*
+
+1. Copy your **Distribution Domain Name** (e.g., `d12345abcdef.cloudfront.net`) from the CloudFront console.
+2. Go to your DNS Provider settings.
+3. **For the root domain (`calview.me`):**
+    - **Type:** ALIAS or ANAME (if supported) OR CNAME (if your provider supports CNAME flattening).
+    - **Host:** `@`
+    - **Value:** Your CloudFront URL.
+4. **For the subdomain (`www.calview.me`):**
+    - **Type:** CNAME
+    - **Host:** `www`
+    - **Value:** Your CloudFront URL.
+
+### 6.4 Verification
+Visit your domain (or the CloudFront URL `https://dXXXX.cloudfront.net` if you didn't use a domain). You should see your website served securely over HTTPS.
+
+### 6.5 Set Up CloudFront for Backend (EC2)
+
+This puts your EC2 instance behind the CDN, giving it SSL (HTTPS) and a custom domain.
+
+1.  Go to **CloudFront** → **Create distribution**.
+2.  **Origin Settings:**
+    * **Origin Domain:** Enter your EC2 Public IPv4 DNS (e.g., `ec2-XX-XX-XX-XX.compute-1.amazonaws.com`).
+    * **Protocol:** **HTTP only** (Important! Your EC2 does not have SSL).
+    * **HTTP Port:** **8000** (Important! Your app runs on port 8000).
+3.  Use recommended origin/cache settings.
+4. **Web Application Firewall (WAF):**
+    - Select **Do not enable security protections** (to stay in Free Tier).
+5. Click **Create distribution**.
+6. Go to **General** → **Settings** → **Edit**.
+    * **Alternate domain name (CNAME):** `api.calview.me` (or your custom domain).
+    * **Custom SSL certificate:** Select your ACM certificate (the same one you created earlier; it should cover `*.calview.me`).
+
+
+### 6.7 Configure DNS (Route 53 or Other)
+
+Point your custom subdomain to the new CloudFront distribution.
+
+1.  Copy the **Distribution Domain Name** for your **Backend** (e.g., `d999xyz.cloudfront.net`).
+2.  Go to your DNS Provider (Route 53, GoDaddy, etc.).
+3.  Create a new record:
+    * **Record Name:** `api` (for `api.calview.me`)
+    * **Type:** CNAME
+    * **Value:** Paste the CloudFront Distribution Domain Name (`d999xyz.cloudfront.net`).
+    * *(If using Route 53, you can use an "A" record with "Alias" set to Yes, but CNAME works everywhere).*
+
+### 6.4 Final Verification
+
+1.  **Wait:** CloudFront takes 5–10 minutes to deploy.
+2.  **Test API:** Visit `https://api.calview.me/health`.
+    * You should see your JSON response (e.g., `{"status": "healthy"}`).
+    * Note the lock icon indicating secure HTTPS.
+3.  **Test Frontend:** Now you can update your frontend code (in `.env` or `config.js`) to point to `https://api.calview.me` instead of the raw EC2 IP.
+
+---
+
+## Step 7: Configure AWS for OIDC (Passwordless Auth)
+
+Instead of using long-lived keys, we will configure AWS to trust GitHub Actions directly.
+
+### 7.1 Add GitHub as an Identity Provider
+
+1. Go to **IAM** → **Identity providers** → **Add provider**.
+2. Select **OpenID Connect**.
+3. **Provider URL**: `https://token.actions.githubusercontent.com`
+5. **Audience**: `sts.amazonaws.com`
+6. Click **Add provider**.
+
+### 7.2 Create the IAM Role for Deployment
+
+1. Go to **IAM** → **Roles** → **Create role**.
+2. **Trusted entity type**: Select **Web identity**.
+3. **Identity provider**: Select the provider you just created (`token.actions.githubusercontent.com`).
+4. **Audience**: Select `sts.amazonaws.com`.
+5. **GitHub organization**: Enter your GitHub username or the owner of the repository.
+6. **GitHub repository**: Enter your repository name (e.g., `calview`).
+    - *Note: This restricts access so ONLY this specific repo can deploy to your account.*
+7. Click **Next**.
+8. **Permissions**: Search for and select `AdministratorAccess` (or your specific deployment policies).
+9. Click **Next**.
+10. **Role name**: `GitHubActionsDeployRole`.
+11. Click **Create role**.
+12. **Copy the ARN**: Click on the new role and copy its **ARN** (e.g., `arn:aws:iam::<Account-ID>:role/GitHubActionsDeployRole`). You will need this for the secrets.
+
+---
+
+## Step 8: Configure GitHub Secrets
+
+1. Go to your GitHub repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
+
+Add the following secrets. **(Note: No AWS Access Keys are needed!)**
+
+| Secret Name | Value | Description |
+| :--- | :--- | :--- |
+| `AWS_ROLE_TO_ASSUME` | `arn:aws:iam::...` | The Role ARN you copied in Step 7.2 |
+| `AWS_REGION` | `us-east-1` | Your AWS Region |
+| `S3_BUCKET_NAME` | `calview-frontend...` | Your S3 bucket name |
+| `EC2_HOST` | `54.x.x.x` | Your EC2 Public IP |
+| `EC2_USERNAME` | `ec2-user` | Default user for Amazon Linux |
+| `EC2_SSH_KEY` | (Content of .pem file) | Private key for SSH access |
+| `VITE_API_BASE_URL` | `https://api.calview.me` | Your Backend URL (use CloudFront URL if setup, or EC2 IP) |
+
+You may also add other API keys as needed for testing, such as:
+- VITE_GOOGLE_MAPS_API_KEY
+- VITE_MAPBOX_TOKEN
+- Any additional VITE_* or API_* keys required by your app
+
+### How to copy your SSH Key correctly:
+
+Run this command in your terminal to copy the key to your clipboard:
+
+```bash
+# MacOS
+cat calview-key.pem | pbcopy
+
+# Windows (Git Bash)
+cat calview-key.pem | clip
+
+# Linux
+cat calview-key.pem | xclip -selection clipboard
+```
+
+---
