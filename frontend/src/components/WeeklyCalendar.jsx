@@ -116,8 +116,7 @@ export default function WeeklyCalendar({
     const grouped = {};
     weekDays.forEach((day) => {
       const dayStr = format(day, 'yyyy-MM-dd');
-      grouped[dayStr] = events
-        .filter((e) => e.start_date === dayStr && !isIndependentEvent(e));
+      grouped[dayStr] = events.filter((e) => e.start_date === dayStr && !isIndependentEvent(e));
     });
     return grouped;
   }, [events, weekDays]);

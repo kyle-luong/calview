@@ -4,12 +4,7 @@ import { formatTime, getEventColor, getEventStyle } from './utils';
  * Single event card displayed on the calendar.
  * Supports side-by-side layout for overlapping events via layoutInfo.
  */
-export default function CalendarEvent({
-  event,
-  layoutInfo,
-  startHour,
-  timeFormat,
-}) {
+export default function CalendarEvent({ event, layoutInfo, startHour, timeFormat }) {
   const style = getEventStyle(event, startHour, layoutInfo);
   const colorClass = getEventColor(event);
   const hasValidTime = event.start && event.end && event.start !== event.end;

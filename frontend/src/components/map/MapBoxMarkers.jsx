@@ -41,7 +41,7 @@ function clearMapMarkers(markers) {
  * Offset scales dynamically with zoom level - markers spread apart more when zoomed in.
  * @param {Object} map - Mapbox map instance
  * @param {number} lng - Longitude
- * @param {number} lat - Latitude  
+ * @param {number} lat - Latitude
  * @param {number} seenCount - Number of markers already at this location
  * @param {number} zoom - Current map zoom level
  */
@@ -49,19 +49,19 @@ function getOffsetLngLat(map, lng, lat, seenCount, zoom = 14) {
   if (seenCount <= 0) return [lng, lat];
 
   const center = map.project([lng, lat]);
-  
+
   // Use a simple spiral or circle pattern
   const baseRadius = 15; // Base pixel distance
   const angle = (seenCount - 1) * (Math.PI / 2); // 90 degrees separation
-  
+
   // Expand radius slightly for every 4 items to spiral out
-  const spiralFactor = 1 + Math.floor((seenCount - 1) / 4) * 0.3; 
-  
+  const spiralFactor = 1 + Math.floor((seenCount - 1) / 4) * 0.3;
+
   const offsetX = Math.cos(angle) * baseRadius * spiralFactor;
   const offsetY = Math.sin(angle) * baseRadius * spiralFactor;
 
   const offsetPx = { x: center.x + offsetX, y: center.y + offsetY };
-  
+
   // Convert the pixel offset back to geographic coordinates
   const newLngLat = map.unproject([offsetPx.x, offsetPx.y]);
   return [newLngLat.lng, newLngLat.lat];
@@ -69,7 +69,7 @@ function getOffsetLngLat(map, lng, lat, seenCount, zoom = 14) {
 
 const MapBoxMarkers = ({ map, segments = [], singleEvents = [], isMapLoaded }) => {
   const markersRef = useRef([]);
-  // We use this to prevent refitting bounds every time the component re-renders 
+  // We use this to prevent refitting bounds every time the component re-renders
   // if the data hasn't actually changed, but here we reset it on data change.
   const hasInitialFit = useRef(false);
 
@@ -80,7 +80,7 @@ const MapBoxMarkers = ({ map, segments = [], singleEvents = [], isMapLoaded }) =
     clearMapMarkers(markersRef.current);
     const newMarkers = [];
     const locationCount = new Map(); // Tracks how many markers are at "lng,lat"
-    const allCoordinates = []; 
+    const allCoordinates = [];
     const addedEventKeys = new Set(); // Tracks unique events to prevent duplicates
 
     // 2. Build Candidate List
@@ -113,23 +113,29 @@ const MapBoxMarkers = ({ map, segments = [], singleEvents = [], isMapLoaded }) =
     allCandidates.forEach((event, index) => {
       if (!event || !event.longitude || !event.latitude) return;
       if (event.title === 'Home') {
-          // Handle Home separately if needed, or let it fall through logic
-          // usually Home doesn't need indexing numbers.
+        // Handle Home separately if needed, or let it fall through logic
+        // usually Home doesn't need indexing numbers.
       }
 
       // Unique Key for this specific event instance
       // We use start time to differentiate the SAME class at DIFFERENT times
       const uniqueEventKey = `${event.title}::${event.start_date}::${event.start}::${event.longitude}::${event.latitude}`;
-      
+
       if (addedEventKeys.has(uniqueEventKey)) return; // Skip exact duplicates
-      
+
       // Location Key for collision detection
       const locKey = `${event.longitude},${event.latitude}`;
       const seenAtLocation = locationCount.get(locKey) || 0;
 
       // --- CALCULATE OFFSET ---
       const currentZoom = map.getZoom() || 14;
-      const targetLngLat = getOffsetLngLat(map, event.longitude, event.latitude, seenAtLocation, currentZoom);
+      const targetLngLat = getOffsetLngLat(
+        map,
+        event.longitude,
+        event.latitude,
+        seenAtLocation,
+        currentZoom
+      );
 
       // Create the marker
       // We pass (index + 1) explicitly so the numbers match the sorted order
@@ -139,7 +145,7 @@ const MapBoxMarkers = ({ map, segments = [], singleEvents = [], isMapLoaded }) =
 
       newMarkers.push(marker);
       allCoordinates.push([event.longitude, event.latitude]); // Use original coords for bounds
-      
+
       // Update counters
       locationCount.set(locKey, seenAtLocation + 1);
       addedEventKeys.add(uniqueEventKey);
@@ -155,7 +161,7 @@ const MapBoxMarkers = ({ map, segments = [], singleEvents = [], isMapLoaded }) =
       map.fitBounds(bounds, {
         padding: { top: 100, bottom: 100, left: 100, right: 100 },
         maxZoom: 15, // <--- THIS RESTRICTION PREVENTS OVER-ZOOMING
-        pitch: 0,    // Usually better to be flat for initial view, 45 is ok if preferred
+        pitch: 0, // Usually better to be flat for initial view, 45 is ok if preferred
         duration: 1000,
       });
     }

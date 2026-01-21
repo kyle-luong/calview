@@ -6,7 +6,7 @@ import { formatHour } from './utils';
  */
 export default function TimeColumn({ timeSlots, timeFormat }) {
   return (
-    <div className="sticky left-0 z-10 w-16 flex-shrink-0 flex flex-col border-r border-slate-200/70 bg-transparent backdrop-blur-sm">
+    <div className="sticky left-0 z-10 flex w-16 flex-shrink-0 flex-col border-r border-slate-200/70 bg-transparent backdrop-blur-sm">
       {/* FIX APPLIED: Added 'flex-none'. 
          This prevents the header from shrinking/growing, ensuring it matches the DayColumn header height exactly.
       */}
