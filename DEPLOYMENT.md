@@ -18,26 +18,22 @@ Previous Architecture Diagram (routify.tech)
 Current Architecture Diagram (https://calview.me)
 ![Routify AWS Architecture Diagram](images/calview.png)
 
-For a detailed, step-by-step explanation of how GitHub Actions uses OIDC to access AWS resources—including how STS, IAM roles, and token claims work together, check out this guide on Qiita: [GitHub Actions with AWS](https://qiita.com/satooshi/items/0c2f5a0e2b64a1d9a4b3)  
-It provides a granular look at the authentication flow, trust policies, and best practices for secure deployments.
-
 ## Step 1: Create AWS Account & IAM User
 
 ### 1.1 Create AWS Account
 
 1. Go to [aws.amazon.com](https://aws.amazon.com)
 2. Click "Create an AWS Account"
-3. Complete signup with credit card (dw, you won't be charged if you are using free plan)
+3. Complete signup with credit card (You won't be charged if you are using free plan)
 
 ### 1.2 Create IAM User for Deployments
 
 1. Go to **IAM → Users → Add users**  
 2. **Username**: `calview-deployer`  
    - Check **“Provide user access to AWS Management Console”**  
-   - Configure remaining settings as desired  
 3. Choose **“Attach policies directly”**  
 4. Add the following policy:  
-   - `AdministratorAccess` (or select more specific policies based on your service usage)  
+   - `AdministratorAccess`
    - While this works perfectly for a tutorial to ensure no permission errors, it is technically "over-privileged."
 5. Click **Create user**
 
@@ -50,12 +46,11 @@ It provides a granular look at the authentication flow, trust policies, and best
 ### 2.1 Create Bucket
 
 1. Go to **S3** → **Create bucket**
-2. **Bucket name**: `calview-frontend` 
-    - This must be globally unique
+2. **Bucket name**: `calview-frontend` (Must be globally unique)
 3. **Region**: Same as EC2 (us-east-1)
 4. **Object Ownership**: ACLs disabled
 5. **Block Public Access**: Uncheck "Block all public access"
-   - Acknowledge the warning
+   - Check the box to acknowledge the warning.
 6. Click **Create bucket**
 
 ### 2.2 Enable Static Website Hosting
@@ -70,7 +65,7 @@ It provides a granular look at the authentication flow, trust policies, and best
 ### 2.3 Add Bucket Policy
 
 1. Go to **Permissions** → **Bucket policy**
-2. Add this policy (replace `YOUR_BUCKET_NAME`. In our case, it would be `calview-frontend-yourname`):
+2. Add this policy (replace `YOUR_BUCKET_NAME` with the name from Step 2.1.2`):
 
 ```json
 {
@@ -89,12 +84,8 @@ It provides a granular look at the authentication flow, trust policies, and best
 ### 2.4 Build & Upload Your Frontend (React / Vite)
 
 1. If you're using React or Vite, `npm run build`
-    - This will generate a `dist/` folder (Vite), or  a `build/` folder (Create React App)
-
-2. Upload **everything inside that folder** to your S3 bucket. It should contain files/folders such as:
-
-- `index.html`  
-- `assets/` (or `static/`)   
+2. Upload the contents of the `dist/` or `build/` folder to your S3 bucket.
+    - You should see `index.html` and an `assets` folder in the bucket root.
 
 ### 2.5 Get Your Website URL
 
@@ -103,7 +94,7 @@ It provides a granular look at the authentication flow, trust policies, and best
 You’ll see a URL like:
 http://calview-frontend-yourname.s3-website-us-east-1.amazonaws.com
 
-Congrats, that’s your live frontend hosted in AWS S3! You should notice the URL is using **HTTP**, not **HTTPS**. That’s expected at this stage because S3 static website endpoints do not support SSL directly. We’ll take care of the security and HTTPS setup later using CloudFront and a custom domain. For now, this is perfect for testing and development. Nothing to worry as your site is live and working.
+Congrats, that’s your live frontend hosted in AWS S3! You should notice the URL is using **HTTP**, not **HTTPS**. That’s expected at this stage because S3 static website endpoints do not support SSL directly. We’ll take care of the security and HTTPS setup later using CloudFront and a custom domain. For now, this is perfect for testing and development.
 
 ---
 
@@ -118,10 +109,9 @@ Congrats, that’s your live frontend hosted in AWS S3! You should notice the UR
      - Choosing a higher-spec instance will increase costs, so `t3.micro` is a cost-effective option for testing and small workloads.
 5. **Key pair**: Create new
    - Name: `calview-key` (or any name you prefer)  
-   - Type: RSA
-   - Format: .pem
+   - Type: RSA (.pem)
    - **Download and save the .pem file!**
-        - You’ll need it to access your instance.
+        - You’ll need it to access your instance and for Step 5 and 8.
 
 ### 3.2 Network Settings
 
@@ -130,10 +120,10 @@ Congrats, that’s your live frontend hosted in AWS S3! You should notice the UR
 3. **Security group**: Create new  
    - **Name**: `calview-ec2-sg` (or any name you prefer)  
    - **Rules**:  
-     - **Type**: SSH, **Source type**: Anywhere, **Description**: Optional (Allows SSH from any device using the private key `calview-key.pem`)  
+     - **Type**: SSH, **Source type**: My IP (Best for security) or Anywhere, **Description**: Optional (Allows SSH from any device using the private key `calview-key.pem`)  
      - **Type**: HTTP, **Source type**: Anywhere  
      - **Type**: HTTPS, **Source type**: Anywhere  
-     - **Type**: Custom TCP, **Port range**: 8000, **Source type**: Anywhere (API port)
+     - **Type**: Custom TCP, **Port range**: 8000, **Source type**: Anywhere (This is your API port)
 
 
 ### 3.3 Storage
@@ -149,30 +139,27 @@ Click **Launch instance**
 ### 4.1 Create Database
 
 1. Go to **RDS** → **Create database**
-2. Choose:
-    - **Creation Method**: Full configuration
-    - **Engine**: PostgreSQL
-    - **Template**: Free tier
+2. **Creation Method**: Full configuration
+3. **Engine**: PostgreSQL
+4. **Template**: Free tier
+5. **Settings**:
     - **DB instance identifier**: `calview-db`
     - **Master username**: `calview_user`
     - **Master password**: Create a strong password (save it!)
-    - **Instance class**: `db.t3.micro` (or something in free tier)
-    - **Storage**: 20 GB (free tier max)
+6. **Instance class**: `db.t3.micro` (or something in free tier)
+7. **Storage**: 20 GB (free tier max)
     - Click on **Additional storage configuration**  
         - **Storage autoscaling**: Disable  
             - This prevents unexpected charges if the database reaches its storage limit.
-    - **Compute resource**: Connect to EC2 instance.  
-    - **EC2 instance**: Select `calview-backend`.
+8. **Connectivity**:
+    - **Connect to EC2 instance**: Select `calview-backend` (from Step 3).
     - **DB subnet group**: Automatic setup.  
-    - **Public access**: No — the DB will **not** have a public IP. Only EC2 instances in the VPC can access it.  
+    - **Public access**: No. Only EC2 instances in the VPC can access it.  
     - **VPC security groups**:  
         - Create new → VPC security group name: `ec2-rds-1` (attached to EC2)  
-            - AWS will automatically create a new security group `rds-ec2-1` (attached to RDS)  
-        - These SGs control which resources can communicate between EC2 and RDS.  
+9. Click **Create database** (takes 5-10 minutes)
 
 > RDS backups are incremental and free up to your database size (Free Tier). Small or lightly-used databases usually stay within this limit, but heavy daily writes or long backup retention can exceed free storage, potentially incurring extra charges. So, its safer to disable backups although shorter retention helps stay under the Free Tier.
-
-3. Click **Create database** (takes 5-10 minutes)
 
 ### 4.2 Get Database Endpoint
 
@@ -211,35 +198,25 @@ ssh -i "calview-key.pem" ec2-user@ec2-XX-XX-XX-XX.compute-1.amazonaws.com
 ### 5.2 Install Dependencies
 
 ```bash
-# Update system packages
 sudo dnf update -y
-
-# Install Python, pip, git
-sudo dnf install -y python3 python3-venv python3-pip git
-
-# Install PostgreSQL client (for testing connection)
-sudo dnf install -y postgresql15
+sudo dnf install -y python3 python3-venv python3-pip git postgresql15
 ```
 
 ### 5.3 Clone and Setup Project
 
 ```bash
-# Clone your repo
 git clone https://github.com/kyle-luong/calview.git
 cd calview/backend
 
-# Create virtual environment
 python3 -m venv venv
 source venv/bin/activate
 
-# Install dependencies
 pip install -r requirements.txt
 ```
 
 ### 5.4 Configure Environment Variables
 
 ```bash
-# Create .env file
 vi .env
 ```
 Press i to enter insert mode, then paste the following (update the values):
@@ -276,10 +253,10 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 ### 5.7 Setup Systemd Service
 
 ```bash
-# Navigate to the project folder
 cd ~/calview
+# Verify file content
+cat calview.service
 
-# Copy the service file to the system directory
 sudo cp calview.service /etc/systemd/system/
 
 # Edit if your username/filepath is different
@@ -306,7 +283,7 @@ CloudFront caches your content globally to improve performance and provides free
 1. Go to **AWS Certificate Manager (ACM)** within the **us-east-1 (N. Virginia)** region.
     > **Note:** CloudFront certificates *must* be in `us-east-1`, regardless of where your infrastructure is.
 2. Click **Request**.
-3. Select **Request a public certificate** → **Next**.
+3. Select **Request a public certificate**.
 4. **Domain names:** Enter your root domain (e.g., `calview.me`)
 5. **Validation method:** DNS validation (recommended).
 6. Click **Request**.
@@ -418,6 +395,7 @@ Instead of using long-lived keys, we will configure AWS to trust GitHub Actions 
 11. Click **Create role**.
 12. **Copy the ARN**: Click on the new role and copy its **ARN** (e.g., `arn:aws:iam::<Account-ID>:role/GitHubActionsDeployRole`). You will need this for the secrets.
 
+> For a detailed, step-by-step explanation of how GitHub Actions uses OIDC to access AWS resources, check out this guide on Qiita: [GitHub Actions with AWS](https://qiita.com/satooshi/items/0c2f5a0e2b64a1d9a4b3)  
 ---
 
 ## Step 8: Configure GitHub Secrets
