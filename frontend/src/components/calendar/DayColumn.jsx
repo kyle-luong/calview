@@ -81,11 +81,11 @@ export default function DayColumn({ day, events, timeSlots, startHour, timeForma
           <div
             key={hour}
             style={{ height: `${HOUR_HEIGHT}px` }}
-            className={`border-b ${isToday ? 'border-slate-200 bg-sky-200/70' : 'border-slate-100'}`}
+            className={`border-b ${isToday ? 'border-slate-200 bg-sky-100/40' : 'border-slate-100'}`}
           />
         ))}
 
-        {/* Timed events with sequential numbering */}
+        {/* Timed events */}
         {timedEvents.map((event, idx) => (
           <CalendarEvent
             key={`${event.title}-${idx}`}
@@ -93,8 +93,6 @@ export default function DayColumn({ day, events, timeSlots, startHour, timeForma
             layoutInfo={dayLayouts[idx] || { column: 0, totalColumns: 1 }}
             startHour={startHour}
             timeFormat={timeFormat}
-            eventNumber={idx + 1}
-            totalEvents={timedEvents.length}
           />
         ))}
       </div>

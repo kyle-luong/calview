@@ -36,12 +36,25 @@ function clearMapMarkers(markers) {
   markers.forEach((marker) => marker.remove());
 }
 
+/**
+ * Calculate offset position for overlapping markers using a radial pattern.
+ * Instead of just stacking vertically, markers spread out in a circle for better visibility.
+ */
 function getOffsetLngLat(map, lng, lat, seenCount) {
   if (seenCount <= 0) return [lng, lat];
 
   const center = map.project([lng, lat]);
-  const offsetY = seenCount * 7.5;
-  const offsetPx = { x: center.x, y: center.y + offsetY };
+
+  // Radial offset pattern: spread markers in a circle
+  // First marker at seenCount=1 goes right, then down, left, up, and spiral out
+  const radius = 20; // pixels from center
+  const angle = (seenCount - 1) * (Math.PI / 2); // 90 degrees apart
+  const spiralFactor = 1 + Math.floor((seenCount - 1) / 4) * 0.5; // Expand radius for each full rotation
+
+  const offsetX = Math.cos(angle) * radius * spiralFactor;
+  const offsetY = Math.sin(angle) * radius * spiralFactor;
+
+  const offsetPx = { x: center.x + offsetX, y: center.y + offsetY };
   const newLngLat = map.unproject([offsetPx.x, offsetPx.y]);
   return [newLngLat.lng, newLngLat.lat];
 }
@@ -91,11 +104,16 @@ const MapBoxMarkers = ({ map, segments = [], singleEvents = [], isMapLoaded }) =
       stableList.push(ev);
     });
 
-    // Sort by date then title for deterministic ordering
+    // Sort chronologically: by date first, then by start time within each day
+    // This ensures events are numbered in the order they occur
     stableList.sort((a, b) => {
-      const da = (a.start_date || a.start || '') + '::' + (a.title || '');
-      const db = (b.start_date || b.start || '') + '::' + (b.title || '');
-      return da < db ? -1 : da > db ? 1 : 0;
+      const dateA = a.start_date || '';
+      const dateB = b.start_date || '';
+      if (dateA !== dateB) return dateA < dateB ? -1 : 1;
+      // Same date: sort by start time
+      const timeA = a.start || '';
+      const timeB = b.start || '';
+      return timeA < timeB ? -1 : timeA > timeB ? 1 : 0;
     });
 
     stableList.forEach((ev, i) => {
