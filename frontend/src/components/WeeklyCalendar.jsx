@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
 import { addDays, format, startOfWeek } from 'date-fns';
 
+import { isIndependentEvent } from './calendar/utils';
 import { CalendarHeader, DayColumn, TimeColumn } from './calendar';
 
 /**
  * Weekly calendar view similar to university schedule planners.
  * Shows a week with time slots on the left and days across the top.
+ * Independent events (start=end) are shown in a separate "Other" section.
  */
 export default function WeeklyCalendar({
   events = [],
@@ -36,19 +38,23 @@ export default function WeeklyCalendar({
     return events.map((e) => e.start_date);
   }, [events]);
 
-  // Calculate dynamic time range based on events in the week
-  // Minimum 9 hours displayed
+  // Calculate dynamic time range based on TIMED events only (exclude independent events).
+  // Independent events (start=end=12:00) are shown in "Other" section,
+  // so they shouldn't affect the time grid range.
   const MIN_HOURS = 9;
 
   const { startHour, endHour } = useMemo(() => {
-    if (weekEvents.length === 0) {
+    // Filter out independent events from time range calculation
+    const timedEvents = weekEvents.filter((event) => !isIndependentEvent(event));
+
+    if (timedEvents.length === 0) {
       return { startHour: 8, endHour: 17 }; // Default 8 AM - 5 PM (9 hours)
     }
 
     let minHour = 24;
     let maxHour = 0;
 
-    weekEvents.forEach((event) => {
+    timedEvents.forEach((event) => {
       const [startH] = event.start.split(':').map(Number);
       const [endH, endM] = event.end.split(':').map(Number);
       const actualEndHour = endM > 0 ? endH + 1 : endH;
