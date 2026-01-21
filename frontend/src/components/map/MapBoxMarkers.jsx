@@ -94,11 +94,13 @@ const MapBoxMarkers = ({ map, segments = [], singleEvents = [], isMapLoaded }) =
     }
 
     // Deduplicate and filter out Home markers
+    // Include start time to distinguish same course at different times (e.g., different sections)
     const stableList = [];
     allCandidates.forEach((ev) => {
       if (!ev) return;
       if (ev.title === 'Home') return;
-      const k = `${ev.title || ''}::${ev.start_date || ev.start || ''}::${ev.longitude || ''}::${ev.latitude || ''}`;
+      // Include start time to differentiate sections of same course
+      const k = `${ev.title || ''}::${ev.start_date || ''}::${ev.start || ''}::${ev.longitude || ''}::${ev.latitude || ''}`;
       if (seenLabelKeys.has(k)) return;
       seenLabelKeys.add(k);
       stableList.push(ev);
@@ -117,15 +119,16 @@ const MapBoxMarkers = ({ map, segments = [], singleEvents = [], isMapLoaded }) =
     });
 
     stableList.forEach((ev, i) => {
-      const k = `${ev.title || ''}::${ev.start_date || ev.start || ''}::${ev.longitude || ''}::${ev.latitude || ''}`;
+      // Include start time in key to match the deduplication key
+      const k = `${ev.title || ''}::${ev.start_date || ''}::${ev.start || ''}::${ev.longitude || ''}::${ev.latitude || ''}`;
       labelMap.set(k, i + 1); // 1-based labels
     });
 
     const addMarkerAt = (event) => {
       if (!event.longitude || !event.latitude) return;
       const key = `${event.longitude},${event.latitude}`;
-      // Avoid adding duplicate markers for the same event/location
-      const dedupeKey = `${key}:${event.title || ''}`;
+      // Include start time in dedupe key to allow same-titled courses at different times
+      const dedupeKey = `${key}:${event.title || ''}:${event.start || ''}`;
       if (addedKeys.has(dedupeKey)) return;
 
       const seen = locationCount.get(key) || 0;
@@ -134,8 +137,8 @@ const MapBoxMarkers = ({ map, segments = [], singleEvents = [], isMapLoaded }) =
 
       const targetLngLat = getOffsetLngLat(map, event.longitude, event.latitude, seen);
 
-      // Determine stable label number if available
-      const labelKey = `${event.title || ''}::${event.start_date || event.start || ''}::${event.longitude || ''}::${event.latitude || ''}`;
+      // Determine stable label number if available (must match key format in labelMap)
+      const labelKey = `${event.title || ''}::${event.start_date || ''}::${event.start || ''}::${event.longitude || ''}::${event.latitude || ''}`;
       const labelNumber = labelMap.get(labelKey) || null;
 
       const marker = createLabeledMarker(event, labelNumber).setLngLat(targetLngLat).addTo(map);
