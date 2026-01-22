@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { addDays, format, startOfWeek } from 'date-fns';
+import { useMemo, useRef, useEffect } from 'react';
+import { addDays, format, startOfWeek, differenceInDays } from 'date-fns';
 
 import { isIndependentEvent } from './calendar/utils';
 import { CalendarHeader, DayColumn, IndependentEventsSection, TimeColumn } from './calendar';
@@ -16,15 +16,14 @@ export default function WeeklyCalendar({
   timeFormat = '12h',
   shortId,
 }) {
-  // Get the start of the week (Sunday)
+  const daysContainerRef = useRef(null);
+
   const weekStart = useMemo(() => startOfWeek(selectedDate, { weekStartsOn: 0 }), [selectedDate]);
 
-  // Generate array of 7 days
   const weekDays = useMemo(() => {
     return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   }, [weekStart]);
 
-  // Get events that fall within the current week
   const weekEvents = useMemo(() => {
     const weekDates = Array.from({ length: 7 }, (_, i) =>
       format(addDays(weekStart, i), 'yyyy-MM-dd')
@@ -32,23 +31,16 @@ export default function WeeklyCalendar({
     return events.filter((event) => weekDates.includes(event.start_date));
   }, [events, weekStart]);
 
-  // Also provide all event dates (from the full events prop) so date picker
-  // can show markers for the entire ICS, not just this week.
   const allEventDates = useMemo(() => {
     return events.map((e) => e.start_date);
   }, [events]);
 
-  // Calculate dynamic time range based on TIMED events only (exclude independent events).
-  // Independent events (start=end=12:00) are shown in "Other" section,
-  // so they shouldn't affect the time grid range.
   const MIN_HOURS = 9;
-
   const { startHour, endHour } = useMemo(() => {
-    // Filter out independent events from time range calculation
     const timedEvents = weekEvents.filter((event) => !isIndependentEvent(event));
 
     if (timedEvents.length === 0) {
-      return { startHour: 8, endHour: 17 }; // Default 8 AM - 5 PM (9 hours)
+      return { startHour: 8, endHour: 17 };
     }
 
     let minHour = 24;
@@ -63,11 +55,9 @@ export default function WeeklyCalendar({
       if (actualEndHour > maxHour) maxHour = actualEndHour;
     });
 
-    // Add 1 hour padding before and after
     let start = Math.max(0, minHour - 1);
     let end = Math.min(24, maxHour + 1);
 
-    // Ensure minimum hours displayed
     const currentHours = end - start;
     if (currentHours < MIN_HOURS) {
       const diff = MIN_HOURS - currentHours;
@@ -75,7 +65,6 @@ export default function WeeklyCalendar({
       const addAfter = diff - addBefore;
       start = Math.max(0, start - addBefore);
       end = Math.min(24, end + addAfter);
-      // If we hit bounds, add remaining to other side
       if (end - start < MIN_HOURS) {
         if (start === 0) end = Math.min(24, MIN_HOURS);
         else start = Math.max(0, 24 - MIN_HOURS);
@@ -85,33 +74,18 @@ export default function WeeklyCalendar({
     return { startHour: start, endHour: end };
   }, [weekEvents]);
 
-  // Time slots based on dynamic range
   const timeSlots = useMemo(() => {
     const slots = [];
-    // Render slots from startHour (inclusive) to endHour (exclusive)
-    // so the grid ends exactly at endHour without an extra margin row.
     for (let hour = startHour; hour < endHour; hour++) {
       slots.push(hour);
     }
     return slots;
   }, [startHour, endHour]);
 
-  // Group events by day
-  const eventsByDay = useMemo(() => {
-    const grouped = {};
-    weekDays.forEach((day) => {
-      const dayStr = format(day, 'yyyy-MM-dd');
-      grouped[dayStr] = events.filter((e) => e.start_date === dayStr);
-    });
-    return grouped;
-  }, [events, weekDays]);
-
-  // Collect all independent events for the week (shown in separate section)
   const weekIndependentEvents = useMemo(() => {
     return weekEvents.filter((event) => isIndependentEvent(event));
   }, [weekEvents]);
 
-  // Filter out independent events for each day (they go in the top section)
   const timedEventsByDay = useMemo(() => {
     const grouped = {};
     weekDays.forEach((day) => {
@@ -121,8 +95,32 @@ export default function WeeklyCalendar({
     return grouped;
   }, [events, weekDays]);
 
+  // Scroll to selected day on mobile when date changes
+  useEffect(() => {
+    const container = daysContainerRef.current;
+    if (!container) return;
+
+    // Only scroll on mobile (when horizontal scrolling is active)
+    const isMobile = window.innerWidth < 640; // sm breakpoint
+    if (!isMobile) return;
+
+    // Calculate which day index to scroll to (0-6)
+    const dayIndex = differenceInDays(selectedDate, weekStart);
+    if (dayIndex < 0 || dayIndex > 6) return;
+
+    // Find the day column element and scroll to it
+    const dayColumns = container.children;
+    if (dayColumns[dayIndex]) {
+      dayColumns[dayIndex].scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'start',
+      });
+    }
+  }, [selectedDate, weekStart]);
+
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white via-slate-50 to-slate-100 shadow-lg">
+    <div className="flex w-full h-full flex-col rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white via-slate-50 to-slate-100 shadow-lg">
       <CalendarHeader
         selectedDate={selectedDate}
         weekStart={weekStart}
@@ -131,16 +129,18 @@ export default function WeeklyCalendar({
         eventDates={allEventDates}
       />
 
-      {/* Independent/Unscheduled events section - always visible at top */}
       <IndependentEventsSection events={weekIndependentEvents} />
 
-      {/* Calendar grid - scrollable, horizontal scroll with snap on mobile */}
-      <div className="flex flex-1 overflow-auto sm:overflow-auto">
+      {/* Calendar grid container:
+          - overflow-y-auto: vertical scroll for time slots
+          - overflow-x-hidden: prevent parent from expanding horizontally
+      */}
+      <div className="flex flex-1 overflow-y-auto overflow-x-hidden">
         <TimeColumn timeSlots={timeSlots} timeFormat={timeFormat} />
 
-        {/* Days grid - horizontal scroll with snap on mobile */}
         <div
-          className="flex flex-1 snap-x snap-mandatory overflow-x-auto scroll-smooth sm:snap-none sm:overflow-x-visible"
+          ref={daysContainerRef}
+          className="flex w-0 min-w-0 flex-1 snap-x snap-mandatory overflow-x-auto scroll-smooth sm:w-auto sm:min-w-0 sm:snap-none sm:overflow-x-visible"
           style={{ WebkitOverflowScrolling: 'touch' }}
         >
           {weekDays.map((day) => {
