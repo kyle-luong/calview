@@ -179,7 +179,7 @@ const MobileNavigation = ({
       </div>
 
       {/* Center: Month Year (Smaller text for mobile) */}
-      <h2 className="px-4 text-base font-semibold text-slate-800">{format(weekStart, 'MMMM yyyy')}</h2>
+      <h2 className="px-3 text-base font-semibold text-slate-800">{format(weekStart, 'MMMM yyyy')}</h2>
 
       {/* Right: Share Link Mobile */}
       <div className="flex items-center">{shortId && <ShareableLinkMobile shortId={shortId} />}</div>
