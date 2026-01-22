@@ -3,6 +3,7 @@ import { addDays, format, parseISO } from 'date-fns';
 import { DayPicker } from 'react-day-picker';
 import { FaBicycle, FaCar, FaWalking } from 'react-icons/fa';
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+
 import 'react-day-picker/dist/style.css';
 
 const calendarStyles = `
@@ -86,7 +87,7 @@ const DesktopControls = ({
   eventDateStrings,
 }) => {
   return (
-    <div className="hidden w-full items-center justify-between gap-4 sm:flex relative">
+    <div className="relative hidden w-full items-center justify-between gap-4 sm:flex">
       {/* Date Navigation */}
       <div className="flex items-center space-x-2">
         <button
@@ -172,7 +173,7 @@ const MobileControls = ({
   eventDateStrings,
 }) => {
   return (
-    <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:hidden relative">
+    <div className="relative flex w-full flex-wrap items-center justify-between gap-2 sm:hidden">
       {/* Date Navigation */}
       <div className="flex items-center space-x-2">
         <button

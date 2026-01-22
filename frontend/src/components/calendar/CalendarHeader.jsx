@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { addDays, format, parseISO } from 'date-fns';
 import { DayPicker } from 'react-day-picker';
 import { FiCalendar, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+
 import 'react-day-picker/dist/style.css';
+
 import ShareableLink from '../ShareableLink';
 import ShareableLinkMobile from '../ShareableLinkMobile';
 
@@ -75,21 +77,21 @@ const DatePickerPopup = ({ selectedDate, onSelect, eventDateStrings }) => (
  * Desktop Navigation (Visible on sm+)
  * Represents the ENTIRE header row for desktop
  */
-const DesktopNavigation = ({ 
-  onPrev, 
-  onNext, 
-  onToday, 
-  onTogglePicker, 
-  showPicker, 
-  selectedDate, 
-  onDateSelect, 
+const DesktopNavigation = ({
+  onPrev,
+  onNext,
+  onToday,
+  onTogglePicker,
+  showPicker,
+  selectedDate,
+  onDateSelect,
   eventDateStrings,
   weekStart, // Added prop
-  shortId    // Added prop
+  shortId, // Added prop
 }) => {
   return (
     // Added 'w-full justify-between' so elements spread out correctly
-    <div className="hidden w-full items-center justify-between sm:flex relative">
+    <div className="relative hidden w-full items-center justify-between sm:flex">
       <div className="flex items-center">
         <button
           onClick={onPrev}
@@ -120,10 +122,10 @@ const DesktopNavigation = ({
         </button>
 
         {showPicker && (
-          <DatePickerPopup 
-            selectedDate={selectedDate} 
-            onSelect={onDateSelect} 
-            eventDateStrings={eventDateStrings} 
+          <DatePickerPopup
+            selectedDate={selectedDate}
+            onSelect={onDateSelect}
+            eventDateStrings={eventDateStrings}
           />
         )}
       </div>
@@ -141,19 +143,19 @@ const DesktopNavigation = ({
  * Mobile Navigation (Visible on < sm)
  * Represents the ENTIRE header row for mobile
  */
-const MobileNavigation = ({ 
-  onToday, 
-  onTogglePicker, 
-  showPicker, 
-  selectedDate, 
-  onDateSelect, 
+const MobileNavigation = ({
+  onToday,
+  onTogglePicker,
+  showPicker,
+  selectedDate,
+  onDateSelect,
   eventDateStrings,
   weekStart, // Added prop
-  shortId    // Added prop
+  shortId, // Added prop
 }) => {
   return (
     // Added 'w-full justify-between' so elements spread out correctly
-    <div className="flex w-full items-center justify-between sm:hidden relative">
+    <div className="relative flex w-full items-center justify-between sm:hidden">
       <div className="flex items-center">
         <button
           onClick={onToday}
@@ -170,19 +172,23 @@ const MobileNavigation = ({
         </button>
 
         {showPicker && (
-          <DatePickerPopup 
-            selectedDate={selectedDate} 
-            onSelect={onDateSelect} 
-            eventDateStrings={eventDateStrings} 
+          <DatePickerPopup
+            selectedDate={selectedDate}
+            onSelect={onDateSelect}
+            eventDateStrings={eventDateStrings}
           />
         )}
       </div>
 
       {/* Center: Month Year (Smaller text for mobile) */}
-      <h2 className="px-3 text-base font-semibold text-slate-800">{format(weekStart, 'MMMM yyyy')}</h2>
+      <h2 className="px-3 text-base font-semibold text-slate-800">
+        {format(weekStart, 'MMMM yyyy')}
+      </h2>
 
       {/* Right: Share Link Mobile */}
-      <div className="flex items-center">{shortId && <ShareableLinkMobile shortId={shortId} />}</div>
+      <div className="flex items-center">
+        {shortId && <ShareableLinkMobile shortId={shortId} />}
+      </div>
     </div>
   );
 };
@@ -198,11 +204,11 @@ export default function CalendarHeader({
   eventDates = [],
 }) {
   const [showDatePicker, setShowDatePicker] = useState(false);
-  
+
   const goToPrevWeek = () => onDateChange?.(addDays(selectedDate, -7));
   const goToNextWeek = () => onDateChange?.(addDays(selectedDate, 7));
   const goToToday = () => onDateChange?.(new Date());
-  
+
   const handleDateSelect = (date) => {
     if (date) {
       onDateChange?.(date);
@@ -215,9 +221,9 @@ export default function CalendarHeader({
   return (
     <div className="relative z-20 flex items-center border-b border-slate-200/80 bg-white/80 px-4 py-3 backdrop-blur-sm">
       <style>{calendarStyles}</style>
-      
+
       {/* 1. Desktop View */}
-      <DesktopNavigation 
+      <DesktopNavigation
         onPrev={goToPrevWeek}
         onNext={goToNextWeek}
         onToday={goToToday}
@@ -227,11 +233,11 @@ export default function CalendarHeader({
         onDateSelect={handleDateSelect}
         eventDateStrings={eventDateStrings}
         weekStart={weekStart} // Passed prop
-        shortId={shortId}     // Passed prop
+        shortId={shortId} // Passed prop
       />
 
       {/* 2. Mobile View */}
-      <MobileNavigation 
+      <MobileNavigation
         onToday={goToToday}
         onTogglePicker={() => setShowDatePicker(!showDatePicker)}
         showPicker={showDatePicker}
@@ -239,9 +245,8 @@ export default function CalendarHeader({
         onDateSelect={handleDateSelect}
         eventDateStrings={eventDateStrings}
         weekStart={weekStart} // Passed prop
-        shortId={shortId}     // Passed prop
+        shortId={shortId} // Passed prop
       />
-
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { FiCalendar, FiMap } from 'react-icons/fi';
 import { Link, useLocation } from 'react-router-dom';
+
 import { getSession } from '../lib/session';
 
 /**
@@ -50,9 +51,7 @@ const DesktopNavbar = ({ activeSession, isOnMapView, isOnCalendarView, pathname 
           <Link
             to={`/view/${activeSession}/calendar`}
             className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition ${
-              isOnCalendarView
-                ? 'bg-slate-900 text-white'
-                : 'text-slate-500 hover:text-slate-900'
+              isOnCalendarView ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'
             }`}
           >
             <FiCalendar className="h-4 w-4" />
@@ -112,9 +111,7 @@ const MobileNavbar = ({ activeSession, isOnMapView, isOnCalendarView, pathname }
           <Link
             to={`/view/${activeSession}/calendar`}
             className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-sm font-medium transition ${
-              isOnCalendarView
-                ? 'bg-slate-900 text-white'
-                : 'text-slate-500 hover:text-slate-900'
+              isOnCalendarView ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'
             }`}
             aria-label="Calendar View"
           >
@@ -154,13 +151,11 @@ export default function Navbar() {
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto max-w-6xl">
-        
         {/* 1. Desktop View */}
         <DesktopNavbar {...commonProps} />
 
         {/* 2. Mobile View */}
         <MobileNavbar {...commonProps} />
-        
       </div>
     </header>
   );

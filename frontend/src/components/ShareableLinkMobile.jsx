@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FiLink, FiCopy, FiCheck } from 'react-icons/fi';
+import { FiCheck, FiCopy, FiLink } from 'react-icons/fi';
 import { useLocation } from 'react-router-dom';
 
 export default function ShareableLinkMobile({ shortId }) {
@@ -23,15 +23,13 @@ export default function ShareableLinkMobile({ shortId }) {
       className="flex items-center justify-between rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700 active:scale-[0.98]"
     >
       <div className="flex items-center gap-2">
-        <span className="text-xs font-medium text-slate-600">
-          Share
-        </span>
+        <span className="text-xs font-medium text-slate-600">Share</span>
       </div>
 
       {copied ? (
-        <FiCheck className="h-4 w-4 text-emerald-600 ml-3" />
+        <FiCheck className="ml-3 h-4 w-4 text-emerald-600" />
       ) : (
-        <FiCopy className="h-4 w-4 text-sky-600 ml-3" />
+        <FiCopy className="ml-3 h-4 w-4 text-sky-600" />
       )}
     </button>
   );

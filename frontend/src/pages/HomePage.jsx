@@ -62,13 +62,11 @@ const MobileHome = () => {
 export default function HomePage() {
   return (
     <div className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-slate-50 px-4 md:px-8">
-      
       {/* 1. Desktop View */}
       <DesktopHome />
 
       {/* 2. Mobile View */}
       <MobileHome />
-      
     </div>
   );
 }

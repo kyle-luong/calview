@@ -1,5 +1,5 @@
-import { useMemo, useRef, useEffect } from 'react';
-import { addDays, format, startOfWeek, differenceInDays } from 'date-fns';
+import { useEffect, useMemo, useRef } from 'react';
+import { addDays, differenceInDays, format, startOfWeek } from 'date-fns';
 
 import { isIndependentEvent } from './calendar/utils';
 import { CalendarHeader, DayColumn, IndependentEventsSection, TimeColumn } from './calendar';
@@ -120,7 +120,7 @@ export default function WeeklyCalendar({
   }, [selectedDate, weekStart]);
 
   return (
-    <div className="flex w-full h-full flex-col rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white via-slate-50 to-slate-100 shadow-lg">
+    <div className="flex h-full w-full flex-col rounded-2xl border border-slate-200/70 bg-gradient-to-b from-white via-slate-50 to-slate-100 shadow-lg">
       <CalendarHeader
         selectedDate={selectedDate}
         weekStart={weekStart}
@@ -135,7 +135,7 @@ export default function WeeklyCalendar({
           - overflow-y-auto: vertical scroll for time slots
           - overflow-x-hidden: prevent parent from expanding horizontally
       */}
-      <div className="flex flex-1 overflow-y-auto overflow-x-hidden">
+      <div className="flex flex-1 overflow-x-hidden overflow-y-auto">
         <TimeColumn timeSlots={timeSlots} timeFormat={timeFormat} />
 
         <div
