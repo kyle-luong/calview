@@ -1,0 +1,315 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: calview serverless backend - Lambda + Step Functions + DynamoDB
+
+Parameters:
+  HashidSalt:
+    Type: String
+    NoEcho: true
+  MapboxToken:
+    Type: String
+    NoEcho: true
+    Default: ""
+  GoogleMapsKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+  AllowedOrigins:
+    Type: String
+    Default: "https://www.calview.me,https://calview.me,http://localhost:5173"
+  SessionTtlDays:
+    Type: Number
+    Default: 30
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [arm64]
+    Timeout: 30
+    MemorySize: 512
+    Tracing: Active
+    Environment:
+      Variables:
+        SESSIONS_TABLE: !Ref SessionsTable
+        EVENTS_TABLE: !Ref EventsTable
+        GEOCODE_CACHE_TABLE: !Ref GeocodeCacheTable
+        CONTACT_TABLE: !Ref ContactTable
+        UPLOAD_BUCKET: !Ref UploadBucket
+        HASHID_SALT: !Ref HashidSalt
+        MAPBOX_TOKEN: !Ref MapboxToken
+        GOOGLE_MAPS_KEY: !Ref GoogleMapsKey
+        SESSION_TTL_DAYS: !Ref SessionTtlDays
+        ALLOWED_ORIGINS: !Ref AllowedOrigins
+        LOG_LEVEL: INFO
+
+Resources:
+
+  # ---------- Storage ----------
+  SessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: shortId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: shortId
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+
+  EventsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sessionId
+          AttributeType: S
+        - AttributeName: sortKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sessionId
+          KeyType: HASH
+        - AttributeName: sortKey
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+  GeocodeCacheTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: locationHash
+          AttributeType: S
+      KeySchema:
+        - AttributeName: locationHash
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+  ContactTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  UploadBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireRawIcs
+            Status: Enabled
+            ExpirationInDays: 7
+            Prefix: uploads/
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: [PUT, GET]
+            AllowedOrigins: !Split [",", !Ref AllowedOrigins]
+            MaxAge: 3000
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # ---------- Shared layer ----------
+  SharedLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      ContentUri: shared/
+      CompatibleRuntimes: [python3.12]
+      CompatibleArchitectures: [arm64]
+    Metadata:
+      BuildMethod: python3.12
+
+  # ---------- HTTP API ----------
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins: !Split [",", !Ref AllowedOrigins]
+        AllowHeaders: ["*"]
+        AllowMethods: [GET, POST, OPTIONS]
+        MaxAge: 3000
+
+  # ---------- Lambdas ----------
+  CreateSessionFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/create_session/
+      Handler: app.handler
+      Layers: [!Ref SharedLayer]
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref SessionsTable }
+        - S3WritePolicy:      { BucketName: !Ref UploadBucket }
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/sessions
+            Method: POST
+
+  StartWorkflowFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/start_workflow/
+      Handler: app.handler
+      Layers: [!Ref SharedLayer]
+      Environment:
+        Variables:
+          STATE_MACHINE_ARN: !Ref ImportStateMachine
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref SessionsTable }
+        - StepFunctionsExecutionPolicy: { StateMachineName: !GetAtt ImportStateMachine.Name }
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/sessions/{shortId}/process
+            Method: POST
+
+  ParseIcsFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/parse_ics/
+      Handler: app.handler
+      Layers: [!Ref SharedLayer]
+      Timeout: 60
+      MemorySize: 1024
+      Policies:
+        - S3ReadPolicy: { BucketName: !Ref UploadBucket }
+
+  GeocodeFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/geocode_locations/
+      Handler: app.handler
+      Layers: [!Ref SharedLayer]
+      Timeout: 120
+      MemorySize: 1024
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref GeocodeCacheTable }
+
+  PersistEventsFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/persist_events/
+      Handler: app.handler
+      Layers: [!Ref SharedLayer]
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref SessionsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref EventsTable }
+
+  GetSessionFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/get_session/
+      Handler: app.handler
+      Layers: [!Ref SharedLayer]
+      Policies:
+        - DynamoDBReadPolicy: { TableName: !Ref SessionsTable }
+        - DynamoDBReadPolicy: { TableName: !Ref EventsTable }
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/sessions/{shortId}
+            Method: GET
+
+  GetStatusFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/get_status/
+      Handler: app.handler
+      Layers: [!Ref SharedLayer]
+      Policies:
+        - DynamoDBReadPolicy: { TableName: !Ref SessionsTable }
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/sessions/{shortId}/status
+            Method: GET
+
+  CommuteMatrixFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/commute_matrix/
+      Handler: app.handler
+      Layers: [!Ref SharedLayer]
+      Timeout: 15
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/distance-matrix
+            Method: POST
+
+  ContactFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/contact_form/
+      Handler: app.handler
+      Layers: [!Ref SharedLayer]
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref ContactTable }
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/contact
+            Method: POST
+
+  # ---------- Step Functions ----------
+  ImportStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: EXPRESS
+      DefinitionUri: statemachine/import_session.asl.json
+      DefinitionSubstitutions:
+        ParseIcsArn: !GetAtt ParseIcsFn.Arn
+        GeocodeArn: !GetAtt GeocodeFn.Arn
+        PersistArn: !GetAtt PersistEventsFn.Arn
+        SessionsTable: !Ref SessionsTable
+      Policies:
+        - LambdaInvokePolicy: { FunctionName: !Ref ParseIcsFn }
+        - LambdaInvokePolicy: { FunctionName: !Ref GeocodeFn }
+        - LambdaInvokePolicy: { FunctionName: !Ref PersistEventsFn }
+        - DynamoDBCrudPolicy: { TableName: !Ref SessionsTable }
+      Logging:
+        Level: ERROR
+        IncludeExecutionData: false
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt StateMachineLogGroup.Arn
+
+  StateMachineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 14
+
+Outputs:
+  ApiUrl:
+    Description: HTTP API endpoint
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+  UploadBucketName:
+    Value: !Ref UploadBucket
