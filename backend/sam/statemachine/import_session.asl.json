@@ -1,0 +1,71 @@
+{
+  "Comment": "Parse uploaded ICS, geocode locations, persist to DynamoDB",
+  "StartAt": "ParseICS",
+  "States": {
+    "ParseICS": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ParseIcsArn}",
+        "Payload.$": "$"
+      },
+      "ResultSelector": { "result.$": "$.Payload" },
+      "ResultPath": "$.parsed",
+      "Retry": [
+        { "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"], "IntervalSeconds": 2, "MaxAttempts": 3, "BackoffRate": 2 }
+      ],
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "MarkFailed" }],
+      "Next": "GeocodeLocations"
+    },
+    "GeocodeLocations": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${GeocodeArn}",
+        "Payload": {
+          "shortId.$": "$.shortId",
+          "sessionId.$": "$.sessionId",
+          "locations.$": "$.parsed.result.locations"
+        }
+      },
+      "ResultSelector": { "geocoded.$": "$.Payload.geocoded" },
+      "ResultPath": "$.geo",
+      "Retry": [
+        { "ErrorEquals": ["States.TaskFailed"], "IntervalSeconds": 2, "MaxAttempts": 2, "BackoffRate": 2 }
+      ],
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "MarkFailed" }],
+      "Next": "PersistEvents"
+    },
+    "PersistEvents": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${PersistArn}",
+        "Payload": {
+          "shortId.$": "$.shortId",
+          "sessionId.$": "$.sessionId",
+          "events.$": "$.parsed.result.events",
+          "geocoded.$": "$.geo.geocoded"
+        }
+      },
+      "ResultPath": "$.persist",
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "MarkFailed" }],
+      "End": true
+    },
+    "MarkFailed": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName": "${SessionsTable}",
+        "Key": { "shortId": { "S.$": "$.shortId" } },
+        "UpdateExpression": "SET #s = :f, errorMessage = :m",
+        "ExpressionAttributeNames": { "#s": "status" },
+        "ExpressionAttributeValues": {
+          ":f": { "S": "FAILED" },
+          ":m": { "S.$": "States.JsonToString($.error)" }
+        }
+      },
+      "End": true
+    }
+  }
+}
