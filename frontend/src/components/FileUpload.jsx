@@ -5,11 +5,27 @@ import { apiFetch } from '../lib/api';
 import { logger } from '../lib/logger';
 import { saveSession } from '../lib/session';
 
+const POLL_INTERVAL_MS = 1500;
+const POLL_TIMEOUT_MS = 90_000;
+
+async function waitForCompletion(shortId, onTick) {
+  const started = Date.now();
+  while (Date.now() - started < POLL_TIMEOUT_MS) {
+    const data = await apiFetch(`/api/sessions/${shortId}/status`);
+    onTick?.(data);
+    if (data.status === 'COMPLETE') return data;
+    if (data.status === 'FAILED') throw new Error(data.error_message || 'Processing failed');
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+  }
+  throw new Error('Processing timed out');
+}
+
 export default function FileUpload() {
   const inputRef = useRef(null);
   const navigate = useNavigate();
   const [shortId, setShortId] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [stage, setStage] = useState('');
   const [filename, setFilename] = useState('');
   const [error, setError] = useState('');
 
@@ -20,22 +36,37 @@ export default function FileUpload() {
     setIsUploading(true);
     setFilename(file.name);
     setError('');
-    const formData = new FormData();
-    formData.append('file', file);
+    setStage('Creating session...');
 
     try {
-      const data = await apiFetch('/api/sessions', {
+      // 1. Create session, get presigned URL
+      const session = await apiFetch('/api/sessions', {
         method: 'POST',
-        headers: {},
-        body: formData,
+        body: JSON.stringify({}),
+      });
+      if (!session.short_id || !session.upload_url) throw new Error('Failed to create session');
+
+      // 2. Upload .ics directly to S3
+      setStage('Uploading calendar...');
+      const putRes = await fetch(session.upload_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'text/calendar' },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error('Upload to storage failed');
+
+      // 3. Trigger Step Functions import workflow
+      setStage('Processing...');
+      await apiFetch(`/api/sessions/${session.short_id}/process`, { method: 'POST' });
+
+      // 4. Poll until COMPLETE/FAILED
+      await waitForCompletion(session.short_id, (s) => {
+        setStage(`Processing... (${s.status?.toLowerCase() || 'pending'})`);
       });
 
-      if (data.short_id) {
-        setShortId(data.short_id);
-        saveSession(data.short_id);
-      } else {
-        setError('Upload failed. Please try again.');
-      }
+      setShortId(session.short_id);
+      saveSession(session.short_id);
+      setStage('Done');
     } catch (err) {
       logger.error('Upload failed:', err);
       setError(err.message || 'Something went wrong. Please try again.');
@@ -54,7 +85,7 @@ export default function FileUpload() {
           disabled={isUploading}
           className="w-full rounded-md bg-sky-600 px-6 py-3 text-base font-medium text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isUploading ? 'Uploading...' : 'Upload a calendar file'}
+          {isUploading ? stage || 'Uploading...' : 'Upload a calendar file'}
         </button>
 
         <button
