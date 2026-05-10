@@ -2,73 +2,44 @@
 
 A calendar visualizer that parses `.ics` files, geocodes event locations, and displays a time-aware schedule with commutes.
 
-## Repo overview
-
 - **Frontend**: React 19, Vite, Tailwind CSS, Mapbox GL JS
-- **Backend**: FastAPI, SQLModel, PostgreSQL, Google Maps API
-- **Infrastructure**: AWS (S3, CloudFront, EC2) via CI/CD pipelines.
+- **Backend**: AWS Lambda + Step Functions + DynamoDB + S3, deployed with AWS SAM
+- **Hosting**: S3 + CloudFront (frontend), API Gateway HTTP API (backend)
+- **CI/CD**: GitHub Actions with OIDC (no static AWS keys)
 
-> For a complete breakdown of the system design, data flow, and infrastructure diagrams, please refer to [ARCHITECTURE.md](ARCHITECTURE.md).
+## Architecture
 
-### Features
-
-- Upload and parse `.ics` calendar files
-- Geocode event locations
-- Visualize daily schedules with estimated commute times
-- Share schedules via unique links
-
-## Development setup
-
-### Backend setup
-
-```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+```
+SPA (S3 + CloudFront)
+   │
+   ▼
+API Gateway HTTP API ──► Lambda ──► Step Functions ──► DynamoDB
+                                       │
+                                       └─► S3 (raw ICS, 7-day lifecycle)
 ```
 
-### Frontend setup
+See [backend/sam/README.md](backend/sam/README.md) for the full stack.
+
+## Local development
 
 ```bash
-cd ../frontend
-npm install
-npm run dev
+# Frontend
+cd frontend && npm install && npm run dev
+
+# Backend (requires Docker for sam build --use-container)
+cd backend/sam && sam build --use-container && sam local start-api
 ```
 
-### Extension setup
+## Deploy
 
-During development, compile Tailwind CSS into `styles.css` with:
-
+First time (interactive, picks region/params):
 ```bash
-cd ../extension
-npm install
-npx tailwindcss -i ./tailwind.css -o ./styles.css --minify --watch
+cd backend/sam && sam deploy --guided
 ```
 
-To run this extension in Chrome, open `chrome://extensions`, enable Developer Mode, and click Load unpacked to select the `extension/` folder. Firefox is not supported. Only `popup.html`, `popup.js`, `styles.css`, and `manifest.json` are needed to run the extension.
+After that, pushes to `main` deploy via GitHub Actions. Required repo secrets are listed in [backend/sam/README.md](backend/sam/README.md).
 
-### Environment variables
+## Feedback
 
-Create a .env file in both `backend/` and `frontend/` based on .env.example.
-
-### Database
-
-A Postgres database is required for development. Make sure to set the `DATABASE_URL` in your `backend/.env` file. You can run Postgres locally using the provided `docker-compose.yml`:
-
-```bash
-# Start a local Postgres instance
-docker compose up -d
-
-# Stop and remove the instance and its data
-docker compose down --volumes
-```
-
-If `DATABASE_URL` is not set, the app falls back to a local SQLite database at `app/database.db`, with no setup required.
-
-### Feedback
-
-We are actively iterating based on user needs.
-- Try it out: https://calview.me
-- Contact: Submit feedback via the form on the website or open a GitHub issue.
+- Try it: https://calview.me
+- Contact: in-app form or GitHub issue.
