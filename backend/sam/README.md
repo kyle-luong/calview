@@ -34,7 +34,7 @@ Step Functions (Express): ParseICS → GeocodeLocations → PersistEvents
 ## Cost-minimizing choices
 
 - **HTTP API** (~$1/M requests) instead of REST API (~$3.50/M)
-- **arm64 Lambda** (20% cheaper than x86_64)
+- **x86_64 Lambda** (matches GitHub Actions `ubuntu-latest`; arm64 failed cross-arch container builds)
 - **PAY_PER_REQUEST** DynamoDB — no idle cost
 - **EXPRESS** Step Functions — billed per execution, much cheaper than Standard for <5min flows
 - **Nominatim (OSM)** geocoder primary, Mapbox fallback only when needed; results cached

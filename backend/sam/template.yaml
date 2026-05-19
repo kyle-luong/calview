@@ -24,7 +24,7 @@ Parameters:
 Globals:
   Function:
     Runtime: python3.12
-    Architectures: [arm64]
+    Architectures: [x86_64]
     Timeout: 15
     MemorySize: 256
     Tracing: Disabled
@@ -147,7 +147,7 @@ Resources:
     Properties:
       ContentUri: shared/
       CompatibleRuntimes: [python3.12]
-      CompatibleArchitectures: [arm64]
+      CompatibleArchitectures: [x86_64]
     Metadata:
       BuildMethod: python3.12
 
