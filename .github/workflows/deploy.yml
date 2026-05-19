@@ -15,6 +15,10 @@ env:
   AWS_REGION: us-east-1
   STACK_NAME: calview
 
+concurrency:
+  group: deploy-calview-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check-frontend:
     name: Lint & Test Frontend
@@ -67,6 +71,16 @@ jobs:
               MapboxToken='${{ secrets.MAPBOX_TOKEN }}' \
               GoogleMapsKey='${{ secrets.GOOGLE_MAPS_KEY }}' \
               AllowedOrigins='${{ secrets.ALLOWED_ORIGINS }}'
+      - name: Configure API CORS (include CloudFront test URL)
+        run: |
+          q() { aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
+          API_URL=$(q ApiUrl)
+          API_ID="${API_URL#https://}"
+          API_ID="${API_ID%%.execute-api*}"
+          CF_DOMAIN=$(q CloudFrontDomain)
+          ORIGINS="https://calview.me,https://www.calview.me,http://localhost:5173,https://${CF_DOMAIN}"
+          aws apigatewayv2 update-api --api-id "$API_ID" \
+            --cors-configuration "AllowOrigins=${ORIGINS},AllowMethods=GET,POST,OPTIONS,AllowHeaders=content-type,MaxAge=3000"
       - id: outputs
         run: |
           q() { aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }

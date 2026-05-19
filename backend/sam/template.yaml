@@ -149,16 +149,23 @@ Resources:
       CompatibleRuntimes: [python3.12]
       CompatibleArchitectures: [x86_64]
     Metadata:
-      BuildMethod: python3.12
+      BuildMethod: makefile
 
   # ---------- HTTP API ----------
   HttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
       CorsConfiguration:
-        AllowOrigins: !Split [",", !Ref AllowedOrigins]
-        AllowHeaders: ["*"]
-        AllowMethods: [GET, POST, OPTIONS]
+        AllowOrigins:
+          - https://calview.me
+          - https://www.calview.me
+          - http://localhost:5173
+        AllowHeaders:
+          - content-type
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
         MaxAge: 3000
       DefaultRouteSettings:
         ThrottlingRateLimit: 20
