@@ -42,14 +42,19 @@ def check(event: dict) -> bool:
     cutoff = now - _WINDOW
     ttl = now + _WINDOW * 2
     limit = _limit()
-    vals = {
+    names = {"#c": "count"}
+    reset_vals = {
         ":one": 1,
         ":now": now,
         ":cutoff": cutoff,
         ":ttl": ttl,
+    }
+    incr_vals = {
+        ":one": 1,
+        ":cutoff": cutoff,
+        ":ttl": ttl,
         ":lim": limit,
     }
-    names = {"#c": "count"}
 
     try:
         tbl.update_item(
@@ -57,7 +62,7 @@ def check(event: dict) -> bool:
             UpdateExpression="SET #c = :one, windowStart = :now, expiresAt = :ttl",
             ConditionExpression="attribute_not_exists(windowStart) OR windowStart < :cutoff",
             ExpressionAttributeNames=names,
-            ExpressionAttributeValues=vals,
+            ExpressionAttributeValues=reset_vals,
         )
         return True
     except ClientError as e:
@@ -70,7 +75,7 @@ def check(event: dict) -> bool:
             UpdateExpression="ADD #c :one SET expiresAt = :ttl",
             ConditionExpression="windowStart >= :cutoff AND #c < :lim",
             ExpressionAttributeNames=names,
-            ExpressionAttributeValues=vals,
+            ExpressionAttributeValues=incr_vals,
         )
         return True
     except ClientError as e:
