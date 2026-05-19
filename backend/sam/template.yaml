@@ -329,17 +329,6 @@ Resources:
         - LambdaInvokePolicy: { FunctionName: !Ref GeocodeFn }
         - LambdaInvokePolicy: { FunctionName: !Ref PersistEventsFn }
         - DynamoDBCrudPolicy: { TableName: !Ref SessionsTable }
-      Logging:
-        Level: ERROR
-        IncludeExecutionData: false
-        Destinations:
-          - CloudWatchLogsLogGroup:
-              LogGroupArn: !GetAtt StateMachineLogGroup.Arn
-
-  StateMachineLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      RetentionInDays: 3
 
   # ---------- Frontend hosting (S3 + CloudFront) ----------
   FrontendBucket:
