@@ -4,6 +4,7 @@ import os
 
 import boto3
 from calview_shared import ddb
+from calview_shared import rate_limit
 from calview_shared.http import respond, error
 
 sfn = boto3.client("stepfunctions")
@@ -11,6 +12,9 @@ STATE_MACHINE_ARN = os.environ["STATE_MACHINE_ARN"]
 
 
 def handler(event, _ctx):
+    if not rate_limit.check(event):
+        return error(429, "Too many requests", event)
+
     short_id = (event.get("pathParameters") or {}).get("shortId")
     if not short_id:
         return error(400, "Missing shortId", event)

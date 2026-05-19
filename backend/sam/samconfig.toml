@@ -1,5 +1,8 @@
 version = 0.1
 
+# DDoS: API Gateway throttling (template HttpApi RouteSettings) + per-IP limits
+# (RATE_LIMIT_PER_MIN on RateLimitTable). Tune RATE_LIMIT_PER_MIN in Globals or stack env.
+
 [default.global.parameters]
 stack_name = "calview"
 

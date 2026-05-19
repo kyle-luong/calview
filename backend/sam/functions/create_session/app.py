@@ -5,7 +5,8 @@ import uuid
 
 import boto3
 from calview_shared import ddb
-from calview_shared.http import respond
+from calview_shared import rate_limit
+from calview_shared.http import respond, error
 from calview_shared.ids import new_short_id
 
 s3 = boto3.client("s3")
@@ -13,6 +14,9 @@ BUCKET = os.environ["UPLOAD_BUCKET"]
 
 
 def handler(event, _ctx):
+    if not rate_limit.check(event):
+        return error(429, "Too many requests", event)
+
     short_id = new_short_id()
     session_id = str(uuid.uuid4())
     key = f"uploads/{session_id}.ics"

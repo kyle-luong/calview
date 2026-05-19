@@ -25,22 +25,24 @@ Globals:
   Function:
     Runtime: python3.12
     Architectures: [arm64]
-    Timeout: 30
-    MemorySize: 512
-    Tracing: Active
+    Timeout: 15
+    MemorySize: 256
+    Tracing: Disabled
     Environment:
       Variables:
         SESSIONS_TABLE: !Ref SessionsTable
         EVENTS_TABLE: !Ref EventsTable
         GEOCODE_CACHE_TABLE: !Ref GeocodeCacheTable
         CONTACT_TABLE: !Ref ContactTable
+        RATE_LIMIT_TABLE: !Ref RateLimitTable
+        RATE_LIMIT_PER_MIN: "30"
         UPLOAD_BUCKET: !Ref UploadBucket
         HASHID_SALT: !Ref HashidSalt
         MAPBOX_TOKEN: !Ref MapboxToken
         GOOGLE_MAPS_KEY: !Ref GoogleMapsKey
         SESSION_TTL_DAYS: !Ref SessionTtlDays
         ALLOWED_ORIGINS: !Ref AllowedOrigins
-        LOG_LEVEL: INFO
+        LOG_LEVEL: WARN
 
 Resources:
 
@@ -104,6 +106,20 @@ Resources:
         - AttributeName: id
           KeyType: HASH
 
+  RateLimitTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
   UploadBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -144,6 +160,19 @@ Resources:
         AllowHeaders: ["*"]
         AllowMethods: [GET, POST, OPTIONS]
         MaxAge: 3000
+      DefaultRouteSettings:
+        ThrottlingRateLimit: 20
+        ThrottlingBurstLimit: 40
+      RouteSettings:
+        "POST /api/sessions":
+          ThrottlingRateLimit: 5
+          ThrottlingBurstLimit: 10
+        "POST /api/sessions/{shortId}/process":
+          ThrottlingRateLimit: 5
+          ThrottlingBurstLimit: 10
+        "POST /api/distance-matrix":
+          ThrottlingRateLimit: 10
+          ThrottlingBurstLimit: 20
 
   # ---------- Lambdas ----------
   CreateSessionFn:
@@ -154,6 +183,7 @@ Resources:
       Layers: [!Ref SharedLayer]
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref SessionsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref RateLimitTable }
         - S3WritePolicy:      { BucketName: !Ref UploadBucket }
       Events:
         Api:
@@ -174,6 +204,7 @@ Resources:
           STATE_MACHINE_ARN: !Ref ImportStateMachine
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref SessionsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref RateLimitTable }
         - StepFunctionsExecutionPolicy: { StateMachineName: !GetAtt ImportStateMachine.Name }
       Events:
         Api:
@@ -189,8 +220,8 @@ Resources:
       CodeUri: functions/parse_ics/
       Handler: app.handler
       Layers: [!Ref SharedLayer]
-      Timeout: 60
-      MemorySize: 1024
+      Timeout: 45
+      MemorySize: 512
       Policies:
         - S3ReadPolicy: { BucketName: !Ref UploadBucket }
 
@@ -200,8 +231,8 @@ Resources:
       CodeUri: functions/geocode_locations/
       Handler: app.handler
       Layers: [!Ref SharedLayer]
-      Timeout: 120
-      MemorySize: 1024
+      Timeout: 90
+      MemorySize: 512
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref GeocodeCacheTable }
 
@@ -254,7 +285,9 @@ Resources:
       CodeUri: functions/commute_matrix/
       Handler: app.handler
       Layers: [!Ref SharedLayer]
-      Timeout: 15
+      MemorySize: 256
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref RateLimitTable }
       Events:
         Api:
           Type: HttpApi
@@ -271,6 +304,7 @@ Resources:
       Layers: [!Ref SharedLayer]
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref ContactTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref RateLimitTable }
       Events:
         Api:
           Type: HttpApi
@@ -305,7 +339,7 @@ Resources:
   StateMachineLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      RetentionInDays: 14
+      RetentionInDays: 3
 
   # ---------- Frontend hosting (S3 + CloudFront) ----------
   FrontendBucket:

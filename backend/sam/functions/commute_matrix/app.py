@@ -1,6 +1,7 @@
 """POST /api/distance-matrix — Mapbox Matrix proxy."""
 import os
 import requests
+from calview_shared import rate_limit
 from calview_shared.http import respond, error, parse_body
 
 MAPBOX_TOKEN = os.environ["MAPBOX_TOKEN"]
@@ -8,6 +9,9 @@ PROFILES = {"walking": "walking", "driving": "driving", "bicycling": "cycling", 
 
 
 def handler(event, _ctx):
+    if not rate_limit.check(event):
+        return error(429, "Too many requests", event)
+
     body = parse_body(event)
     origins = body.get("origins") or []
     destinations = body.get("destinations") or []
